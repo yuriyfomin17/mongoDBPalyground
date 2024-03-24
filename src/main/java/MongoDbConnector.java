@@ -1,14 +1,16 @@
 import com.mongodb.*;
 import com.mongodb.client.*;
-import com.mongodb.client.model.Filters;
-import com.mongodb.client.model.Updates;
+import com.mongodb.client.model.*;
 import com.mongodb.client.result.UpdateResult;
 import org.bson.Document;
 import org.bson.conversions.Bson;
 import org.bson.types.ObjectId;
-
+import java.util.ArrayList;
 import java.util.List;
-
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import static com.mongodb.client.model.Filters.and;
 import static com.mongodb.client.model.Filters.gte;
 
 public class MongoDbConnector {
@@ -23,10 +25,58 @@ public class MongoDbConnector {
                 .serverApi(serverApi)
                 .build();
 
-        executeCodeInTx(settings);
+        parallelExecution(settings);
     }
 
-    private static void updateManyField(MongoClientSettings settings){
+    private static void parallelExecution(MongoClientSettings settings) {
+        try (MongoClient mongoClient = MongoClients.create(settings)) {
+            MongoDatabase siemConfigDB = mongoClient.getDatabase("SiemConfigDB");
+            MongoCollection<Document> siemConfigCollection = siemConfigDB.getCollection("SiemConfig");
+            ExecutorService executorService = Executors.newFixedThreadPool(100);
+            Bson filterQuery = Filters.eq("_id", new ObjectId("65f8766e3495001452bfd5d0"));
+            Bson updateQuery = Updates.inc("balance", 1);
+            List<CompletableFuture<UpdateResult>> completableFutures = new ArrayList<>();
+            for (int i = 0; i < 1000; i++) {
+                completableFutures.add(CompletableFuture.supplyAsync(() -> siemConfigCollection.updateOne(filterQuery, updateQuery), executorService));
+            }
+            completableFutures.forEach(CompletableFuture::join);
+
+            executorService.close();
+        } catch (MongoException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void matchSortAndProject(MongoClientSettings settings) {
+        try (MongoClient mongoClient = MongoClients.create(settings)) {
+            try {
+                MongoDatabase coronetDB = mongoClient.getDatabase("CoronetDB");
+                MongoCollection<Document> activityLogCollection = coronetDB.getCollection("ActivityLog");
+                Bson matchStage = Aggregates.match(and(Filters.eq("type", "ACCOUNT")));
+                Bson sortStage = Aggregates.sort(Sorts.orderBy(Sorts.descending("date")));
+                Bson projectStage = Aggregates.project(Projections.fields(Projections.include("description"), Projections.include("date")));
+                activityLogCollection.aggregate(List.of(matchStage, sortStage, projectStage)).forEach(System.out::println);
+            } catch (MongoException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private static void group(MongoClientSettings settings) {
+        try (MongoClient mongoClient = MongoClients.create(settings)) {
+            try {
+                MongoDatabase coronetDB = mongoClient.getDatabase("CoronetDB");
+                MongoCollection<Document> activityLogCollection = coronetDB.getCollection("ActivityLog");
+                Bson matchStage = Aggregates.match(Filters.eq("type", "ACCOUNT"));
+                Bson groupStage = Aggregates.group("$undone", Accumulators.sum("total_undone", 1));
+                activityLogCollection.aggregate(List.of(matchStage, groupStage)).forEach(System.out::println);
+            } catch (MongoException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private static void updateManyField(MongoClientSettings settings) {
         try (MongoClient mongoClient = MongoClients.create(settings)) {
             try {
                 MongoDatabase siemConfigDB = mongoClient.getDatabase("SiemConfigDB");
@@ -40,6 +90,7 @@ public class MongoDbConnector {
             }
         }
     }
+
     private static void updateOneField(MongoClientSettings settings) {
         try (MongoClient mongoClient = MongoClients.create(settings)) {
             try {
