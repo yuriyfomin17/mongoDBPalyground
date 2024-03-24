@@ -1,12 +1,15 @@
+package operations.find;
+
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.Projections;
 import com.mongodb.client.model.Sorts;
+import operations.MongoDbUtils;
 import org.bson.Document;
 import org.bson.conversions.Bson;
 import org.bson.types.ObjectId;
 
-public class MongoDbFindDocument {
+public class FindOneDocument {
 
     private static final String DATABASE = "CoronetDB";
     private static final String COLLECTION = "ActivityLog";

@@ -13,7 +13,7 @@ import java.util.concurrent.Executors;
 import static com.mongodb.client.model.Filters.and;
 import static com.mongodb.client.model.Filters.gte;
 
-public class MongoDbConnector {
+public class MongoDbAllOperations {
     private static final String CONNECTION_STRING = "mongodb://localhost:27017";
 
     public static void main(String[] args) {
